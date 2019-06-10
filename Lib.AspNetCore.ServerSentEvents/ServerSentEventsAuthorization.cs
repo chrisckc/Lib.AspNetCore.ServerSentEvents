@@ -10,7 +10,12 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// <summary>
         /// Gets the <see cref="ServerSentEventsAuthorization"/> instance which will result in using the default authorization policy.
         /// </summary>
-        public static ServerSentEventsAuthorization Default { get; } = new ServerSentEventsAuthorization();
+        public static ServerSentEventsAuthorization Default { get; } = new ServerSentEventsAuthorization() { AuthenticationSchemes = "Identity.Application" };
+
+        /// <summary>
+        /// Gets the <see cref="ServerSentEventsAuthorization"/> instance which will result in using the Bearer authorization policy.
+        /// </summary>
+        public static ServerSentEventsAuthorization Bearer { get; } = new ServerSentEventsAuthorization() { AuthenticationSchemes = "Bearer" };
 
         /// <summary>
         /// Gets or sets the policy name that determines access to the endpoint.

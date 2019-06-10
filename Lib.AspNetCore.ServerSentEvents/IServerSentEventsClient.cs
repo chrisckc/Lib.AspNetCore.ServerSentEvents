@@ -14,12 +14,17 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// <summary>
         /// Gets the unique client identifier.
         /// </summary>
-        Guid Id { get; }
+        Guid? Id { get; set; } // changed to nullable and settable to allow setting Id later
 
         /// <summary>
         /// Gets the System.Security.Claims.ClaimsPrincipal for user associated with the client.
         /// </summary>
         ClaimsPrincipal User { get; }
+
+        /// <summary>
+        /// Gets or sets the string LastEventId sent to the client.
+        /// </summary>
+        string LastEventId { get; set; }
 
         /// <summary>
         /// Gets the value indicating if client is connected.
@@ -33,7 +38,7 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// </summary>
         /// <param name="text">The simple text event.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        Task SendEventAsync(string text);
+        Task<bool> SendEventAsync(string text);
 
         /// <summary>
         /// Sends event to client.
@@ -41,14 +46,14 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// <param name="text">The simple text event.</param>
         /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        Task SendEventAsync(string text, CancellationToken cancellationToken);
+        Task<bool> SendEventAsync(string text, CancellationToken cancellationToken);
 
         /// <summary>
         /// Sends event to client.
         /// </summary>
         /// <param name="serverSentEvent">The event.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        Task SendEventAsync(ServerSentEvent serverSentEvent);
+        Task<bool> SendEventAsync(ServerSentEvent serverSentEvent);
 
         /// <summary>
         /// Sends event to client.
@@ -56,7 +61,7 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// <param name="serverSentEvent">The event.</param>
         /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        Task SendEventAsync(ServerSentEvent serverSentEvent, CancellationToken cancellationToken);
+        Task<bool> SendEventAsync(ServerSentEvent serverSentEvent, CancellationToken cancellationToken);
         #endregion
     }
 }

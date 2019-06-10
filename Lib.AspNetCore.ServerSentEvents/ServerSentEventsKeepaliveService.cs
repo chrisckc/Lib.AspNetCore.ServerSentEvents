@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Lib.AspNetCore.ServerSentEvents.Internals;
+using Microsoft.Extensions.Logging;
 
 namespace Lib.AspNetCore.ServerSentEvents
 {
@@ -19,14 +20,19 @@ namespace Lib.AspNetCore.ServerSentEvents
         private readonly ServerSentEventsServiceOptions<TServerSentEventsService> _options;
         private readonly TServerSentEventsService _serverSentEventsService;
 
+        private readonly ILogger _logger;
+
         private Task _executingTask;
         #endregion
 
         #region Constructor
-        public ServerSentEventsKeepaliveService(TServerSentEventsService serverSentEventsService, IOptions<ServerSentEventsServiceOptions<TServerSentEventsService>> options)
+        public ServerSentEventsKeepaliveService(TServerSentEventsService serverSentEventsService, IOptions<ServerSentEventsServiceOptions<TServerSentEventsService>> options, ILogger<ServerSentEventsKeepaliveService<TServerSentEventsService>> logger)
         {
             _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
             _serverSentEventsService = serverSentEventsService;
+            _logger = logger;
+            _logger.LogDebug($"Constructor: _options.KeepaliveMode: {_options.KeepaliveMode}");
+            _logger.LogDebug($"Constructor: _isBehindAncm: {_isBehindAncm}");
         }
         #endregion
 
@@ -35,14 +41,17 @@ namespace Lib.AspNetCore.ServerSentEvents
         {
             if ((_options.KeepaliveMode == ServerSentEventsKeepaliveMode.Always) || ((_options.KeepaliveMode == ServerSentEventsKeepaliveMode.BehindAncm) && _isBehindAncm))
             {
+                _logger.LogDebug($"StartAsync: executing task...");
                 _executingTask = ExecuteAsync(_stoppingCts.Token);
 
                 if (_executingTask.IsCompleted)
                 {
+                    _logger.LogDebug($"StartAsync: task completed");
                     return _executingTask;
                 }
+            } else {
+                _logger.LogDebug($"StartAsync: nothing to do");
             }
-
             return Task.CompletedTask;
         }
 
@@ -66,10 +75,14 @@ namespace Lib.AspNetCore.ServerSentEvents
 
         private async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogDebug($"ExecuteAsync: _options.KeepaliveInterval: {_options.KeepaliveInterval}");
             while (!stoppingToken.IsCancellationRequested)
             {
-                await _serverSentEventsService.SendAsync(_keepaliveServerSentEventBytes, CancellationToken.None);
-
+                int clientCount =_serverSentEventsService.GetClientCount();
+                if (clientCount > 0) {
+                    _logger.LogDebug($"ExecuteAsync: Sending keepalive to {clientCount} connected clients...");
+                    await _serverSentEventsService.SendAsync(_keepaliveServerSentEventBytes, CancellationToken.None);
+                }
                 await Task.Delay(TimeSpan.FromSeconds(_options.KeepaliveInterval), stoppingToken);
             }
         }

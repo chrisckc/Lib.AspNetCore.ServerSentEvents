@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using Lib.AspNetCore.ServerSentEvents.Internals;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace Lib.AspNetCore.ServerSentEvents
 {
@@ -28,6 +29,10 @@ namespace Lib.AspNetCore.ServerSentEvents
 
         #region Fields
         private readonly ConcurrentDictionary<Guid, ServerSentEventsClient> _clients = new ConcurrentDictionary<Guid, ServerSentEventsClient>();
+        /// <summary>
+        /// Logger instance
+        /// </summary>
+        protected ILogger _logger;
         #endregion
 
         #region Properties
@@ -35,6 +40,15 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// Gets the interval after which clients will attempt to reestablish failed connections.
         /// </summary>
         public uint? ReconnectInterval { get; private set; }
+        #endregion
+
+        #region Constructor
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        public ServerSentEventsService(ILogger<ServerSentEventsService> logger) {
+            _logger = logger;
+        }
         #endregion
 
         #region Methods
@@ -59,6 +73,15 @@ namespace Lib.AspNetCore.ServerSentEvents
         public IReadOnlyCollection<IServerSentEventsClient> GetClients()
         {
             return _clients.Values.ToArray();
+        }
+
+        /// <summary>
+        /// Gets the number of connected clients
+        /// </summary>
+        /// <returns>The clients.</returns>
+        public int GetClientCount()
+        {
+            return _clients.Count;
         }
 
         /// <summary>
@@ -170,41 +193,42 @@ namespace Lib.AspNetCore.ServerSentEvents
 
         internal void AddClient(ServerSentEventsClient client)
         {
-            _clients.TryAdd(client.Id, client);
+            if (client.Id == null) client.Id = new Guid();
+            _clients.TryAdd(client.Id.Value, client);
         }
 
         internal void RemoveClient(ServerSentEventsClient client)
         {
             client.IsConnected = false;
-
-            _clients.TryRemove(client.Id, out client);
+            _clients.TryRemove(client.Id.Value, out client);
         }
 
         internal Task SendAsync(ServerSentEventBytes serverSentEventBytes, CancellationToken cancellationToken)
         {
-            List<Task> clientsTasks = null;
-
-            foreach (ServerSentEventsClient client in _clients.Values)
-            {
-                if (client.IsConnected)
+            int clientCount = GetClientCount();
+            _logger.LogDebug($"SendAsync: Connected Client Count: {clientCount}");
+            if (clientCount > 0) {
+                _logger.LogInformation($"SendAsync: Sending Event to {clientCount} connected Clients...");
+                List<Task> clientsTasks = new List<Task>();
+                foreach (ServerSentEventsClient client in _clients.Values)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    Task operationTask = client.SendAsync(serverSentEventBytes, cancellationToken);
-
-                    if (operationTask.Status != TaskStatus.RanToCompletion)
+                    if (client.IsConnected)
                     {
-                        if (clientsTasks is null)
-                        {
-                            clientsTasks = new List<Task>();
-                        }
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                        clientsTasks.Add(operationTask);
+                        Task operationTask = client.SendAsync(serverSentEventBytes, cancellationToken);
+
+                        if (operationTask.Status != TaskStatus.RanToCompletion)
+                        {
+                            clientsTasks.Add(operationTask);
+                        }
+                    } else {
+                        _logger.LogDebug($"SendAsync: Client: {client.Id} was not connected, Event was not be sent");
                     }
                 }
+                return Task.WhenAll(clientsTasks);
             }
-
-            return (clientsTasks is null) ? Task.CompletedTask : Task.WhenAll(clientsTasks);
+            return Task.CompletedTask;
         }
         #endregion
     }

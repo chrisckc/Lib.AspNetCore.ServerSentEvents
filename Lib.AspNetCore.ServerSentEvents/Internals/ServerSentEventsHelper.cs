@@ -22,6 +22,11 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
         #endregion
 
         #region Methods
+        internal static bool ShouldAccept(this HttpContext context, Func<HttpContext, bool> onShouldAccept)
+        {
+            return onShouldAccept(context);
+        }
+        
         internal static Task AcceptAsync(this HttpResponse response, Action<HttpResponse> onPrepareAccept)
         {
             response.ContentType = Constants.SSE_CONTENT_TYPE;
