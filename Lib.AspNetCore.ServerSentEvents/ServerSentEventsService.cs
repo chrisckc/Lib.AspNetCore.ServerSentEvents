@@ -223,7 +223,7 @@ namespace Lib.AspNetCore.ServerSentEvents
                             clientsTasks.Add(operationTask);
                         }
                     } else {
-                        _logger.LogDebug($"SendAsync: Client: {client.Id} was not connected, Event was not be sent");
+                        _logger.LogDebug($"SendAsync: Client: {client.Id} was not connected, Event was not sent");
                     }
                 }
                 return Task.WhenAll(clientsTasks);

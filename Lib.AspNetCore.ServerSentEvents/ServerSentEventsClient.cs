@@ -121,7 +121,7 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
         internal async Task<bool> SendAsync(ServerSentEventBytes serverSentEvent, CancellationToken cancellationToken)
         {
             try {
-                CheckIsConnected();
+                CheckIsConnected(); // it is up to the caller to first check IsConnected, this will throw if IsConnected == false
                 _logger.LogDebug($"Client SendAsync: Sending Event to: {this.ToString()}");
                 await _response.WriteAsync(serverSentEvent, cancellationToken);
                 return true;
