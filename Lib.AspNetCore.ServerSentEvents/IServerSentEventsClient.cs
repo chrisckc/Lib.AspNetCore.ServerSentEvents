@@ -14,7 +14,12 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// <summary>
         /// Gets the unique client identifier.
         /// </summary>
-        Guid? Id { get; set; } // changed to nullable and settable to allow setting Id later
+        Guid Id { get; }
+
+        /// <summary>
+        /// Gets the unique user identifier.
+        /// </summary>
+        Guid? UserId { get; set; }  // added this to track connected users
 
         /// <summary>
         /// Gets the System.Security.Claims.ClaimsPrincipal for user associated with the client.

@@ -8,10 +8,10 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
         #region Methods
         internal static Task WaitAsync(this CancellationToken cancellationToken)
         {
-            TaskCompletionSource<bool> cancelationTaskCompletionSource = new TaskCompletionSource<bool>();
-            cancellationToken.Register(taskCompletionSource => ((TaskCompletionSource<bool>)taskCompletionSource).SetResult(true), cancelationTaskCompletionSource);
+            TaskCompletionSource<bool> cancellationTaskCompletionSource = new TaskCompletionSource<bool>();
+            cancellationToken.Register(taskCompletionSource => ((TaskCompletionSource<bool>)taskCompletionSource).SetResult(true), cancellationTaskCompletionSource);
 
-            return cancellationToken.IsCancellationRequested ? Task.CompletedTask : cancelationTaskCompletionSource.Task;
+            return cancellationToken.IsCancellationRequested ? Task.CompletedTask : cancellationTaskCompletionSource.Task;
         }
         #endregion
     }

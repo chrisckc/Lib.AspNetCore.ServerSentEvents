@@ -62,12 +62,12 @@ namespace Lib.AspNetCore.ServerSentEvents
             {
                 if (!await AuthorizeAsync(context, policyEvaluator))
                 {
-                    _logger.LogWarning($"AuthorizeAsync returned false for context.User.Identity.Name: {context.User?.Identity?.Name}");
+                    _logger.LogWarning($"{DateTime.Now.ToString()} : Invoke: AuthorizeAsync returned false for context.User.Identity.Name: {context.User?.Identity?.Name}");
                     return;
                 }
                 bool shouldAccept = context.ShouldAccept(_serverSentEventsOptions.OnShouldAccept);
                 if (!shouldAccept) {
-                    _logger.LogWarning($"ShouldAccept returned false for context.User.Identity.Name: {context.User?.Identity?.Name}");
+                    _logger.LogWarning($"{DateTime.Now.ToString()} : Invoke: ShouldAccept returned false for context.User.Identity.Name: {context.User?.Identity?.Name}");
                     return;
                 } 
 
@@ -82,19 +82,24 @@ namespace Lib.AspNetCore.ServerSentEvents
                 
                 // Set the Guid later to provide the opportunity for the Guid to be set by user code in the ClientConnected event hander
                 // Useful when using Authentication to allow the client to be associated with a user.
-                ServerSentEventsClient client = new ServerSentEventsClient(context.User, context.Response, _logger);
-                _logger.LogDebug($"Client Created: ConnectedAt: {client.ConnectedAt} User.Identity.Name: {client.User?.Identity?.Name}");
+                CancellationTokenSource _responseEndCts = new CancellationTokenSource();
+                ServerSentEventsClient client = new ServerSentEventsClient(Guid.NewGuid(), context.User, context.Response, _logger, _responseEndCts);
+                _logger.LogDebug($"{DateTime.Now.ToString()} : Invoke: Client Connected: ConnectedAt: {client.ConnectedAt} User.Identity.Name: {client.User?.Identity?.Name}");
 
                 if (_serverSentEventsService.ReconnectInterval.HasValue)
                 {
                     await client.ChangeReconnectIntervalAsync(_serverSentEventsService.ReconnectInterval.Value, CancellationToken.None);
                 }
 
-                await ConnectClientAsync(context.Request, client);
+                await AddClientAsync(context.Request, client);
 
-                await context.RequestAborted.WaitAsync();
+                _responseEndCts.Token.Register(() => _logger.LogDebug("{0} : Invoke: _responseEndCts.Token has been cancelled", DateTime.Now.ToString()));
 
-                await DisconnectClientAsync(context.Request, client);
+                //await context.RequestAborted.WaitAsync();
+                // Wait until the task completes or the _responseEndCts token triggers
+                await Task.WhenAny(context.RequestAborted.WaitAsync(), Task.Delay(Timeout.Infinite, _responseEndCts.Token));
+
+                await RemoveClientAsync(context.Request, client);
             }
             else
             {
@@ -189,8 +194,9 @@ namespace Lib.AspNetCore.ServerSentEvents
             });
         }
 
-        private async Task ConnectClientAsync(HttpRequest request, ServerSentEventsClient client)
+        private async Task AddClientAsync(HttpRequest request, ServerSentEventsClient client)
         {
+            _logger.LogDebug($"{DateTime.Now.ToString()} : AddClientAsync: Adding Client: {client.ToString()}");
             string lastEventId = request.Headers[Constants.LAST_EVENT_ID_HTTP_HEADER];
             if (String.IsNullOrWhiteSpace(lastEventId)) {
                 // Try and get from the query string, one of the popular polyfills last event id on the query string
@@ -202,21 +208,22 @@ namespace Lib.AspNetCore.ServerSentEvents
             if (!String.IsNullOrWhiteSpace(lastEventId))
             {
                 await _serverSentEventsService.OnReconnectAsync(request, client, lastEventId);
-                _logger.LogInformation($"Client Reconnected: {client.ToString()}");
+                _logger.LogInformation($"Client added (Reconnected), client.Id: {client.Id}");
             }
             else
             {
                 await _serverSentEventsService.OnConnectAsync(request, client);
-                _logger.LogInformation($"Client Connected: {client.ToString()}");
+                _logger.LogInformation($"Client added (Connected), client.Id: {client.Id}");
             }
-            _serverSentEventsService.AddClient(client);
+            await _serverSentEventsService.AddClient(client);
             _logger.LogInformation($"Connected Client Count: {_serverSentEventsService.GetClientCount()}");
         }
 
-        private async Task DisconnectClientAsync(HttpRequest request, ServerSentEventsClient client)
+        private async Task RemoveClientAsync(HttpRequest request, ServerSentEventsClient client)
         {
+            _logger.LogDebug($"{DateTime.Now.ToString()} : RemoveClientAsync: Removing Client: {client.ToString()}");
             _serverSentEventsService.RemoveClient(client);
-            _logger.LogInformation($"Client Disconnected: {client.ToString()}");
+            _logger.LogInformation($"Client Removed (Disconnected), client.Id: {client.Id}");
             await _serverSentEventsService.OnDisconnectAsync(request, client);
             _logger.LogInformation($"Connected Client Count: {_serverSentEventsService.GetClientCount()}");
         }

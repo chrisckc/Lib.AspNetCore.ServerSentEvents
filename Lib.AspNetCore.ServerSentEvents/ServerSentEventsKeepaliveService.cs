@@ -80,8 +80,9 @@ namespace Lib.AspNetCore.ServerSentEvents
             {
                 int clientCount =_serverSentEventsService.GetClientCount();
                 if (clientCount > 0) {
-                    _logger.LogDebug($"ExecuteAsync: Sending keepalive to {clientCount} connected clients...");
-                    await _serverSentEventsService.SendAsync(_keepaliveServerSentEventBytes, CancellationToken.None);
+                    _logger.LogTrace($"ExecuteAsync: Sending keepalive to {clientCount} clients...");
+                    int sentCount = await _serverSentEventsService.SendAsync(_keepaliveServerSentEventBytes, CancellationToken.None, LogLevel.Trace);
+                    _logger.LogTrace($"ExecuteAsync: Sent keepalive to {sentCount} connected clients...");
                 }
                 await Task.Delay(TimeSpan.FromSeconds(_options.KeepaliveInterval), stoppingToken);
             }
