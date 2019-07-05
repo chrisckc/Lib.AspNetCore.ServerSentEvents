@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
+using System.Linq;
 
 namespace Lib.AspNetCore.ServerSentEvents
 {
@@ -32,6 +33,25 @@ namespace Lib.AspNetCore.ServerSentEvents
 
         #region Methods
         /// <summary>
+        /// Gets the client based on the unique user identifier.
+        /// </summary>
+        /// <param name="userId">The unique user identifier.</param>
+        /// <returns>The client.</returns>
+        IServerSentEventsClient GetUserClient(Guid userId);
+
+        /// <summary>
+        /// Gets all clients.
+        /// </summary>
+        /// <returns>The user clients.</returns>
+        IReadOnlyCollection<IServerSentEventsClient> GetUserClients();
+
+        /// <summary>
+        /// Gets all clients as IQueryable.
+        /// </summary>
+        /// <returns>The user clients.</returns>
+        IQueryable<IServerSentEventsClient> GetUserClientsAsQueryable();
+
+        /// <summary>
         /// Gets the client based on the unique client identifier.
         /// </summary>
         /// <param name="clientId">The unique client identifier.</param>
@@ -43,6 +63,12 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// </summary>
         /// <returns>The clients.</returns>
         IReadOnlyCollection<IServerSentEventsClient> GetClients();
+
+        /// <summary>
+        /// Gets all clients as IQueryable.
+        /// </summary>
+        /// <returns>The clients.</returns>
+        IQueryable<IServerSentEventsClient> GetClientsAsQueryable();
 
         /// <summary>
         /// Changes the interval after which clients will attempt to reestablish failed connections.

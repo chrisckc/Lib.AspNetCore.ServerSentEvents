@@ -140,28 +140,6 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
             }
         }
 
-        internal bool CloseConnection()
-        {
-            try {
-                CheckIsConnected(); // it is up to the caller to first check IsConnected, this will throw if IsConnected == false
-                if (_connectionCts != null) {
-                    if (!_connectionCts.IsCancellationRequested) {
-                        _logger.LogDebug($"Client CloseAsync: triggering _connectionCts.Cancel()");
-                        _connectionCts.Cancel();
-                    } else {
-                        _logger.LogDebug($"Client CloseAsync: _connectionCts.Cancel() has already been triggered");
-                    }
-                    return true;
-                }
-                return false;
-            } catch (Exception ex) {
-                if (_logger != null) {
-                    _logger.LogError($"Client CloseAsync: Error triggering _connectionCts.Cancel(), Exception: {ex.Message}");
-                }
-                return false;
-            }
-        }
-
         /// <summary>
         /// Sends a hello message to the client
         /// </summary>
@@ -187,9 +165,13 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
         /// </summary>
         /// <param name="message">The message to send, reason for disconnect.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        public Task<bool> SendCloseEventAsync(string message)
+        public async Task<bool> SendCloseEventAsync(string message)
         {
-            return SendEventAsync(new ServerSentEvent { Id = "CLOSE", Data = new List<string>() { message }});
+            bool sent = await SendEventAsync(new ServerSentEvent { Id = "CLOSE", Data = new List<string>() { message }});
+            if (sent) {
+                MarkedForDisconnection = true; // client will be ignored when sending events
+            }
+            return sent;
         }
 
         /// <summary>
@@ -198,9 +180,13 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
         /// <param name="message">The message to send, reason for disconnect.</param>
         /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        public Task<bool> SendCloseEventAsync(string message, CancellationToken cancellationToken)
+        public async Task<bool> SendCloseEventAsync(string message, CancellationToken cancellationToken)
         {
-            return SendEventAsync(new ServerSentEvent { Id = "CLOSE", Data = new List<string>() { message }}, cancellationToken);
+            bool sent = await SendEventAsync(new ServerSentEvent { Id = "CLOSE", Data = new List<string>() { message }}, cancellationToken);
+            if (sent) {
+                MarkedForDisconnection = true; // client will be ignored when sending events
+            }
+            return sent;
         }
 
         internal Task<bool> ChangeReconnectIntervalAsync(uint reconnectInterval, CancellationToken cancellationToken)
@@ -213,6 +199,32 @@ namespace Lib.AspNetCore.ServerSentEvents.Internals
             if (!IsConnected)
             {
                 throw new InvalidOperationException("The client isn't connected.");
+            }
+        }
+
+        /// <summary>
+        /// Closes the connection to the client.
+        /// </summary>
+        /// <returns>whether the operation succeeded</returns>
+        public bool CloseConnection()
+        {
+            try {
+                CheckIsConnected(); // it is up to the caller to first check IsConnected, this will throw if IsConnected == false
+                if (_connectionCts != null) {
+                    if (!_connectionCts.IsCancellationRequested) {
+                        _logger.LogDebug($"Client CloseAsync: triggering _connectionCts.Cancel()");
+                        _connectionCts.Cancel();
+                    } else {
+                        _logger.LogDebug($"Client CloseAsync: _connectionCts.Cancel() has already been triggered");
+                    }
+                    return true;
+                }
+                return false;
+            } catch (Exception ex) {
+                if (_logger != null) {
+                    _logger.LogError($"Client CloseAsync: Error triggering _connectionCts.Cancel(), Exception: {ex.Message}");
+                }
+                return false;
             }
         }
 

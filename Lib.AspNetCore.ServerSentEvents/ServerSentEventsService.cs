@@ -30,7 +30,7 @@ namespace Lib.AspNetCore.ServerSentEvents
         #region Fields
         private readonly ConcurrentDictionary<Guid, ServerSentEventsClient> _clients = new ConcurrentDictionary<Guid, ServerSentEventsClient>();
 
-        private readonly ConcurrentDictionary<Guid, ServerSentEventsClient> _userClients = new ConcurrentDictionary<Guid, ServerSentEventsClient>();
+        private readonly ConcurrentDictionary<Guid, IServerSentEventsClient> _userClients = new ConcurrentDictionary<Guid, IServerSentEventsClient>();
 
         /// <summary>
         /// Logger instance
@@ -65,13 +65,31 @@ namespace Lib.AspNetCore.ServerSentEvents
         /// </summary>
         /// <param name="userId">The unique user identifier.</param>
         /// <returns>The client.</returns>
-        public ServerSentEventsClient GetUserClient(Guid userId)
+        public IServerSentEventsClient GetUserClient(Guid userId)
         {
-            ServerSentEventsClient client;
+            IServerSentEventsClient client;
 
             _userClients.TryGetValue(userId, out client);
 
             return client;
+        }
+
+        /// <summary>
+        /// Gets all clients.
+        /// </summary>
+        /// <returns>The user clients.</returns>
+        public IReadOnlyCollection<IServerSentEventsClient> GetUserClients()
+        {
+            return _userClients.Values.ToArray();
+        }
+
+        /// <summary>
+        /// Gets all clients as IQueryable.
+        /// </summary>
+        /// <returns>The user clients.</returns>
+        public IQueryable<IServerSentEventsClient> GetUserClientsAsQueryable()
+        {
+            return _userClients.Values.AsQueryable();
         }
 
         /// <summary>
@@ -95,6 +113,15 @@ namespace Lib.AspNetCore.ServerSentEvents
         public IReadOnlyCollection<IServerSentEventsClient> GetClients()
         {
             return _clients.Values.ToArray();
+        }
+
+        /// <summary>
+        /// Gets all clients as IQueryable.
+        /// </summary>
+        /// <returns>The clients.</returns>
+        public IQueryable<IServerSentEventsClient> GetClientsAsQueryable()
+        {
+            return _clients.Values.AsQueryable();
         }
 
         /// <summary>
@@ -297,7 +324,6 @@ namespace Lib.AspNetCore.ServerSentEvents
                     _logger.LogDebug($"AddClient: client.SendErrorEventAsync() success: {sendSuccess}");
                     sendSuccess = await client.SendCloseEventAsync("Reconnection attempt refused");
                     _logger.LogDebug($"AddClient: removedClient.SendCloseEventAsync() success: {sendSuccess}");
-                    client.MarkedForDisconnection = true;
                     await Task.Delay(DisconnectionDelay);
                     client.CloseConnection();
                     return; // prevent a reconnecting client from disconnecting an existing client
@@ -305,14 +331,13 @@ namespace Lib.AspNetCore.ServerSentEvents
                 // Check if a client with same userId is already connected, only allow 1 client with same userId to be connected at any one time
                 // The last connected client disconnects any previous client with the same userId.
                 if (_userClients.ContainsKey(client.UserId.Value)) {                   
-                    ServerSentEventsClient removedClient;
+                    IServerSentEventsClient removedClient;
                     _userClients.TryRemove(client.UserId.Value, out removedClient);
                     bool success = await removedClient.SendErrorEventAsync($"Another client with the same UserId has connected, the connection will be closed");
                     _logger.LogDebug($"AddClient: client.SendErrorEventAsync() success: {success}");
                     // Instruct the previous client to disconnect
                     success = await removedClient.SendCloseEventAsync($"Duplicate Client (UserId: {removedClient.UserId})");
                     _logger.LogDebug($"AddClient: removedClient.SendCloseEventAsync() success: {success}");
-                    removedClient.MarkedForDisconnection = true; // client will be ignored when sending events
                     // In case the client does not honour the close instruction, wait for short delay and then close the connection
                     await Task.Delay(DisconnectionDelay);
                     // If the connection is just closed from the server side without first asking the client to disconnect, the client would just auto reconnect (depending on client side EventSource library)
@@ -338,7 +363,7 @@ namespace Lib.AspNetCore.ServerSentEvents
         {
             // If the client has a userId, check if the same client is stored in _userClients for the same userId, remove if match found
             if (client.UserId.HasValue) {
-                ServerSentEventsClient userClient = GetUserClient(client.UserId.Value);
+                IServerSentEventsClient userClient = GetUserClient(client.UserId.Value);
                 if (userClient != null && userClient.Id.Equals(client.Id)) {
                     _userClients.TryRemove(client.UserId.Value, out userClient);
                 }
